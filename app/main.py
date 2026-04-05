@@ -36,8 +36,8 @@ class ChatRequest(BaseModel):
     tts: Optional[bool] = True
 
 class ChatResponse(BaseModel):
-    answer: str
-    audio_base64: str  # empty string if TTS disabled / unavailable
+    answer_text: str        # ← matches frontend: data.answer_text
+    audio_base64: str       # empty string if TTS disabled / unavailable
     latency_ms: int
 
 
@@ -67,11 +67,16 @@ async def avatar_chat(req: ChatRequest):
     # 3. Get LLM response
     answer = await chat(req.message, context, history_dicts)
 
-    # 4. TTS (optional)
+    # 4. TTS (optional) — falls back to "" if Azure keys missing
     audio_b64 = ""
     if req.tts:
-        audio_b64 = await synthesise(answer)
+        try:
+            audio_b64 = await synthesise(answer)
+        except Exception as tts_err:
+            # TTS failure must never kill the text response
+            print(f"[tts] error (non-fatal): {tts_err}")
+            audio_b64 = ""
 
     latency = int((time.monotonic() - t0) * 1000)
 
-    return ChatResponse(answer=answer, audio_base64=audio_b64, latency_ms=latency)
+    return ChatResponse(answer_text=answer, audio_base64=audio_b64, latency_ms=latency)
