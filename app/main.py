@@ -1,4 +1,5 @@
 import time
+import traceback
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -11,11 +12,10 @@ from app.tts import synthesise
 
 app = FastAPI(
     title="Seeshuraj Avatar API",
-    description="AI avatar backend: Grok LLM + Azure TTS",
     version="1.0.0",
 )
 
-# CORS: allow everything — public portfolio API, no auth, no sensitive data
+# CORS: allow everything — public portfolio API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,18 +25,18 @@ app.add_middleware(
 )
 
 
-# Global exception handler — ensures CORS headers survive even on 500 errors
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    print(f"[error] unhandled exception: {exc}")
+    tb = traceback.format_exc()
+    print(f"[UNHANDLED] {tb}")
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error"},
+        content={"detail": str(exc), "trace": tb[-500:]},
         headers={"Access-Control-Allow-Origin": "*"},
     )
 
 
-# ── Schemas ──────────────────────────────────────────────
+# ── Schemas ──────────────────────────
 
 class HistoryTurn(BaseModel):
     role: str
@@ -53,7 +53,7 @@ class ChatResponse(BaseModel):
     latency_ms: int
 
 
-# ── Routes ──────────────────────────────────────────────
+# ── Routes ──────────────────────────
 
 @app.get("/health")
 async def health():
@@ -62,27 +62,45 @@ async def health():
 
 @app.post("/api/avatar-chat")
 async def avatar_chat(req: ChatRequest):
-    if not req.message.strip():
+    try:
+        if not req.message.strip():
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "message cannot be empty"},
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
+        t0 = time.monotonic()
+
+        # 1. RAG context
+        context = retrieve(req.message)
+        print(f"[chat] context retrieved, len={len(context)}")
+
+        # 2. History
+        history_dicts = [{"role": t.role, "content": t.content} for t in (req.history or [])]
+
+        # 3. LLM
+        answer = await chat(req.message, context, history_dicts)
+        print(f"[chat] llm answered: {answer[:80]}")
+
+        # 4. TTS (non-fatal)
+        audio_b64 = ""
+        if req.tts:
+            try:
+                audio_b64 = await synthesise(answer)
+            except Exception as e:
+                print(f"[tts] non-fatal: {e}")
+
+        latency = int((time.monotonic() - t0) * 1000)
+        print(f"[chat] done latency={latency}ms audio={'yes' if audio_b64 else 'no'}")
+
+        return ChatResponse(answer_text=answer, audio_base64=audio_b64, latency_ms=latency)
+
+    except Exception as exc:
+        tb = traceback.format_exc()
+        print(f"[chat] ROUTE CRASH:\n{tb}")
         return JSONResponse(
-            status_code=400,
-            content={"detail": "message cannot be empty"},
+            status_code=500,
+            content={"detail": str(exc), "trace": tb[-800:]},
             headers={"Access-Control-Allow-Origin": "*"},
         )
-
-    t0 = time.monotonic()
-
-    context = retrieve(req.message)
-    history_dicts = [{"role": t.role, "content": t.content} for t in (req.history or [])]
-    answer = await chat(req.message, context, history_dicts)
-
-    audio_b64 = ""
-    if req.tts:
-        try:
-            audio_b64 = await synthesise(answer)
-        except Exception as e:
-            print(f"[tts] non-fatal: {e}")
-
-    latency = int((time.monotonic() - t0) * 1000)
-    print(f"[chat] ok latency={latency}ms audio={'yes' if audio_b64 else 'no'}")
-
-    return ChatResponse(answer_text=answer, audio_base64=audio_b64, latency_ms=latency)
