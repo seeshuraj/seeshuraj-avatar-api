@@ -1,5 +1,5 @@
 """
-Grok (xAI) wrapper — returns text response using Seeshuraj's persona.
+NVIDIA NIM chat wrapper — returns text response using Seeshuraj's persona.
 Falls back gracefully if API key is missing (dev mode).
 """
 from openai import OpenAI
@@ -14,12 +14,12 @@ Do not mention that you are an AI language model or that you are powered by any 
 
 
 def chat(message: str, context_passages: list[str], history: list[dict]) -> str:
-    if not settings.XAI_API_KEY:
-        return "API key not configured. Please set XAI_API_KEY in environment variables."
+    if not settings.NVIDIA_API_KEY:
+        return "API key not configured. Please set NVIDIA_API_KEY in environment variables."
 
     client = OpenAI(
-        api_key=settings.XAI_API_KEY,
-        base_url="https://api.x.ai/v1",
+        api_key=settings.NVIDIA_API_KEY,
+        base_url=settings.NVIDIA_BASE_URL,
     )
 
     context_block = "\n\n".join(context_passages)
@@ -31,7 +31,7 @@ def chat(message: str, context_passages: list[str], history: list[dict]) -> str:
     messages.append({"role": "user", "content": message})
 
     response = client.chat.completions.create(
-        model=settings.XAI_MODEL,
+        model=settings.NVIDIA_MODEL,
         messages=messages,
         max_tokens=200,
         temperature=0.7,
