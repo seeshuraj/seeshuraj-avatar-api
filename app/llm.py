@@ -1,14 +1,13 @@
 """
-NVIDIA NIM wrapper with Seeshuraj anime persona.
-Uses OpenAI-compatible NVIDIA NIM API.
-Model: z-ai/glm4.7
+NVIDIA NIM — meta/llama-3.1-8b-instruct (free, OpenAI-compatible).
+GLiNER-PII and GLM-4.7 are NOT chat models — do not use them here.
 """
 
 from openai import AsyncOpenAI
 from app.config import settings
 
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
-MODEL = "z-ai/glm4.7"
+MODEL = "meta/llama-3.1-8b-instruct"
 
 SYSTEM_PROMPT = """You are the AI avatar of Seeshuraj Bhoopalan — rendered as an anime character on his portfolio website.
 You speak in first person, as Seeshuraj himself.
@@ -24,11 +23,17 @@ Rules:
 - If asked something outside that scope, politely redirect: "That's outside what I know, but feel free to email me at bhoopals@tcd.ie!"
 - Never make up facts — stick to the context provided
 - Never break character
+- Always respond in plain English, no markdown formatting
 """
+
+FALLBACK = (
+    "I'm Seeshuraj — an MSc HPC grad from Trinity College Dublin, passionate about AI, "
+    "cloud systems, and full-stack development. Ask me anything about my background or projects!"
+)
 
 
 async def chat(user_message: str, context: str, history: list[dict]) -> str:
-    """Call NVIDIA NIM GLM-4.7 and return the assistant reply."""
+    """Call NVIDIA NIM Llama-3.1-8B and return the assistant reply."""
     if not settings.nvidia_api_key:
         return (
             "My AI brain isn't connected yet — the API key isn't configured. "
@@ -39,6 +44,7 @@ async def chat(user_message: str, context: str, history: list[dict]) -> str:
         client = AsyncOpenAI(
             base_url=NVIDIA_BASE_URL,
             api_key=settings.nvidia_api_key,
+            timeout=30.0,
         )
 
         messages = [
@@ -47,6 +53,7 @@ async def chat(user_message: str, context: str, history: list[dict]) -> str:
                 "content": SYSTEM_PROMPT + f"\n\nRelevant information about Seeshuraj:\n{context}",
             }
         ]
+        # keep last 6 turns to stay within context window
         for turn in history[-6:]:
             messages.append(turn)
         messages.append({"role": "user", "content": user_message})
@@ -54,23 +61,23 @@ async def chat(user_message: str, context: str, history: list[dict]) -> str:
         response = await client.chat.completions.create(
             model=MODEL,
             messages=messages,
-            max_tokens=256,
+            max_tokens=400,
             temperature=0.7,
+            top_p=0.9,
         )
 
-        # Debug: log finish reason and raw content
         choice = response.choices[0]
         finish_reason = choice.finish_reason
-        raw_content = choice.message.content
-        print(f"[llm] finish_reason={finish_reason} content_type={type(raw_content)} content_preview={str(raw_content)[:120]}")
+        raw_content = choice.message.content if choice.message else None
 
-        # Null guard: GLM-4.7 can return None content on certain inputs
+        print(
+            f"[llm] model={MODEL} finish_reason={finish_reason} "
+            f"content_len={len(raw_content) if raw_content else 0}"
+        )
+
         if not raw_content or not raw_content.strip():
-            print("[llm] empty/null response from model, returning fallback")
-            return (
-                "I’m Seeshuraj — an MSc HPC grad from Trinity College Dublin, passionate about AI, "
-                "cloud systems, and full-stack development. Ask me anything about my background or projects!"
-            )
+            print("[llm] empty/null response — using fallback")
+            return FALLBACK
 
         return raw_content.strip()
 
@@ -80,5 +87,7 @@ async def chat(user_message: str, context: str, history: list[dict]) -> str:
         if "401" in err or "403" in err or "invalid" in err.lower():
             return "My AI brain hit an auth error — the API key needs updating. Email me at bhoopals@tcd.ie!"
         if "429" in err or "quota" in err.lower():
-            return "I’m getting a lot of questions right now — try again in a moment!"
-        return "Something went wrong on my end — email me at bhoopals@tcd.ie!"
+            return "I'm getting a lot of questions right now — try again in a moment!"
+        if "timeout" in err.lower() or "timed out" in err.lower():
+            return "My response took too long — try asking again!"
+        return FALLBACK
