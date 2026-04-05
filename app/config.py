@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # LLM — NVIDIA NIM (OpenAI-compatible)
     NVIDIA_API_KEY: str = ""
     NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
-    NVIDIA_MODEL: str = "deepseek-ai/deepseek-r1-0528-qwen3-8b"
+    NVIDIA_MODEL: str = "meta/llama-3.1-8b-instruct"
 
     # Azure TTS
     SPEECH_KEY: str = ""
@@ -14,14 +14,14 @@ class Settings(BaseSettings):
     SPEECH_VOICE: str = "en-US-AriaNeural"
 
     # CORS — stored as JSON string in env: '["https://yourdomain.com"]'
-    ALLOWED_ORIGINS: str = '["*"]'
+    ALLOWED_ORIGINS: str = '["https://seeshuraj.github.io"]'
 
     @property
     def origins(self) -> List[str]:
         try:
             return json.loads(self.ALLOWED_ORIGINS)
         except Exception:
-            return ["*"]
+            return ["https://seeshuraj.github.io"]
 
     class Config:
         env_file = ".env"
