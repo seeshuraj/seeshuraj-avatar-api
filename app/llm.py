@@ -57,7 +57,22 @@ async def chat(user_message: str, context: str, history: list[dict]) -> str:
             max_tokens=256,
             temperature=0.7,
         )
-        return response.choices[0].message.content.strip()
+
+        # Debug: log finish reason and raw content
+        choice = response.choices[0]
+        finish_reason = choice.finish_reason
+        raw_content = choice.message.content
+        print(f"[llm] finish_reason={finish_reason} content_type={type(raw_content)} content_preview={str(raw_content)[:120]}")
+
+        # Null guard: GLM-4.7 can return None content on certain inputs
+        if not raw_content or not raw_content.strip():
+            print("[llm] empty/null response from model, returning fallback")
+            return (
+                "I’m Seeshuraj — an MSc HPC grad from Trinity College Dublin, passionate about AI, "
+                "cloud systems, and full-stack development. Ask me anything about my background or projects!"
+            )
+
+        return raw_content.strip()
 
     except Exception as e:
         err = str(e)
@@ -65,5 +80,5 @@ async def chat(user_message: str, context: str, history: list[dict]) -> str:
         if "401" in err or "403" in err or "invalid" in err.lower():
             return "My AI brain hit an auth error — the API key needs updating. Email me at bhoopals@tcd.ie!"
         if "429" in err or "quota" in err.lower():
-            return "I'm getting a lot of questions right now — try again in a moment!"
+            return "I’m getting a lot of questions right now — try again in a moment!"
         return "Something went wrong on my end — email me at bhoopals@tcd.ie!"
