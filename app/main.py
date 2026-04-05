@@ -15,11 +15,26 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Resolve origins — always include github.io as a guaranteed safe origin
+_origins = settings.allowed_origins
+if "*" not in _origins:
+    _guaranteed = [
+        "https://seeshuraj.github.io",
+        "http://localhost:3000",
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+    ]
+    for _o in _guaranteed:
+        if _o not in _origins:
+            _origins.append(_o)
+
+print(f"[cors] allowed origins: {_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origins=_origins,
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -36,7 +51,7 @@ class ChatRequest(BaseModel):
     tts: Optional[bool] = True
 
 class ChatResponse(BaseModel):
-    answer_text: str        # ← matches frontend: data.answer_text
+    answer_text: str        # matches frontend: data.answer_text
     audio_base64: str       # empty string if TTS disabled / unavailable
     latency_ms: int
 
@@ -67,15 +82,13 @@ async def avatar_chat(req: ChatRequest):
     # 3. Get LLM response
     answer = await chat(req.message, context, history_dicts)
 
-    # 4. TTS (optional) — falls back to "" if Azure keys missing
+    # 4. TTS (optional) — never fatal
     audio_b64 = ""
     if req.tts:
         try:
             audio_b64 = await synthesise(answer)
         except Exception as tts_err:
-            # TTS failure must never kill the text response
             print(f"[tts] error (non-fatal): {tts_err}")
-            audio_b64 = ""
 
     latency = int((time.monotonic() - t0) * 1000)
 
