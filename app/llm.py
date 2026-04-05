@@ -8,7 +8,7 @@ import json
 from app.config import settings
 
 XAI_BASE_URL = "https://api.x.ai/v1"
-MODEL = "grok-3-fast"
+MODEL = "grok-3-mini"
 
 SYSTEM_PROMPT = """
 You are the AI avatar of Seeshuraj Bhoopalan — rendered as an anime character on his portfolio website.
@@ -65,9 +65,8 @@ async def chat(user_message: str, context: str, history: list[dict]) -> str:
                 content=json.dumps(payload),
             )
 
-            # Surface useful error context in logs without crashing the request
             if resp.status_code == 403:
-                print(f"[llm] 403 Forbidden \u2014 check XAI_API_KEY on Render (may be invalid or expired)")
+                print("[llm] 403 Forbidden \u2014 check XAI_API_KEY on Render (may be invalid or expired)")
                 return (
                     "My AI brain hit an auth error \u2014 the API key needs updating. "
                     "Email me at bhoopals@tcd.ie or connect on LinkedIn!"
@@ -79,7 +78,7 @@ async def chat(user_message: str, context: str, history: list[dict]) -> str:
                 print(f"[llm] xAI server error {resp.status_code}")
                 return "The AI service is temporarily unavailable. Email me at bhoopals@tcd.ie!"
 
-            resp.raise_for_status()  # catch any other 4xx
+            resp.raise_for_status()
             data = resp.json()
             return data["choices"][0]["message"]["content"].strip()
 
