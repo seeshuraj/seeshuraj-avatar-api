@@ -12,10 +12,11 @@ from app.tts import synthesise
 
 app = FastAPI(
     title="Seeshuraj Avatar API",
-    version="1.0.0",
+    description="AI anime avatar backend — Llama-3.1-8B (NVIDIA NIM) + Azure Neural TTS",
+    version="1.1.0",
 )
 
-# CORS: allow everything — public portfolio API
+# CORS: allow all origins — public portfolio API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,8 +37,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# ── Schemas ──────────────────────────
-
+# ── Schemas ───────────────────────────────────────
 class HistoryTurn(BaseModel):
     role: str
     content: str
@@ -53,7 +53,18 @@ class ChatResponse(BaseModel):
     latency_ms: int
 
 
-# ── Routes ──────────────────────────
+# ── Routes ───────────────────────────────────────
+@app.get("/")
+async def root():
+    """Root — returns service info. Fixes the Render health-check 404."""
+    return {
+        "service": "Seeshuraj Avatar API",
+        "version": "1.1.0",
+        "model": "meta/llama-3.1-8b-instruct (NVIDIA NIM)",
+        "status": "online",
+        "docs": "/docs",
+    }
+
 
 @app.get("/health")
 async def health():
