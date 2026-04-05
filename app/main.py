@@ -1,10 +1,9 @@
 import time
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 
-from app.config import settings
 from app.rag import retrieve
 from app.llm import chat
 from app.tts import synthesise
@@ -15,34 +14,22 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Resolve origins — always include github.io as a guaranteed safe origin
-_origins = settings.allowed_origins
-if "*" not in _origins:
-    _guaranteed = [
-        "https://seeshuraj.github.io",
-        "http://localhost:3000",
-        "http://localhost:5500",
-        "http://127.0.0.1:5500",
-    ]
-    for _o in _guaranteed:
-        if _o not in _origins:
-            _origins.append(_o)
-
-print(f"[cors] allowed origins: {_origins}")
-
+# ── CORS: allow all origins unconditionally ──────────────────
+# This is a public read-only portfolio API — no auth, no sensitive data.
+# We hardcode ["*"] so no env-var parsing can ever break it.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,
+    allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
-# ── Request / Response schemas ──────────────────────────────
+# ── Request / Response schemas ───────────────────────────────
 
 class HistoryTurn(BaseModel):
-    role: str  # "user" | "assistant"
+    role: str        # "user" | "assistant"
     content: str
 
 class ChatRequest(BaseModel):
@@ -51,12 +38,12 @@ class ChatRequest(BaseModel):
     tts: Optional[bool] = True
 
 class ChatResponse(BaseModel):
-    answer_text: str        # matches frontend: data.answer_text
-    audio_base64: str       # empty string if TTS disabled / unavailable
+    answer_text: str    # matches frontend: data.answer_text
+    audio_base64: str   # empty string if TTS disabled / unavailable
     latency_ms: int
 
 
-# ── Routes ──────────────────────────────────────────────────
+# ── Routes ───────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
@@ -73,23 +60,24 @@ async def avatar_chat(req: ChatRequest):
     # 1. Retrieve relevant context from knowledge base
     context = retrieve(req.message)
 
-    # 2. Convert history to plain dicts for the LLM
+    # 2. Flatten history to plain dicts for the LLM
     history_dicts = [
-        {"role": turn.role, "content": turn.content}
-        for turn in (req.history or [])
+        {"role": t.role, "content": t.content}
+        for t in (req.history or [])
     ]
 
-    # 3. Get LLM response
+    # 3. LLM response
     answer = await chat(req.message, context, history_dicts)
 
-    # 4. TTS (optional) — never fatal
+    # 4. TTS — non-fatal: text always returns even if audio fails
     audio_b64 = ""
     if req.tts:
         try:
             audio_b64 = await synthesise(answer)
-        except Exception as tts_err:
-            print(f"[tts] error (non-fatal): {tts_err}")
+        except Exception as e:
+            print(f"[tts] non-fatal error: {e}")
 
     latency = int((time.monotonic() - t0) * 1000)
+    print(f"[chat] latency={latency}ms tts={'yes' if audio_b64 else 'no'}")
 
     return ChatResponse(answer_text=answer, audio_base64=audio_b64, latency_ms=latency)
