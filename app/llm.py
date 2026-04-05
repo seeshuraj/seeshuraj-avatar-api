@@ -1,12 +1,14 @@
 """
-Google Gemini wrapper with Seeshuraj anime persona.
-Uses google-generativeai SDK (gemini-2.0-flash — free tier).
+NVIDIA NIM wrapper with Seeshuraj anime persona.
+Uses OpenAI-compatible NVIDIA NIM API.
+Model: z-ai/glm4.7
 """
 
-import google.generativeai as genai
+from openai import AsyncOpenAI
 from app.config import settings
 
-MODEL = "gemini-2.0-flash"
+NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+MODEL = "z-ai/glm4.7"
 
 SYSTEM_PROMPT = """You are the AI avatar of Seeshuraj Bhoopalan — rendered as an anime character on his portfolio website.
 You speak in first person, as Seeshuraj himself.
@@ -26,35 +28,42 @@ Rules:
 
 
 async def chat(user_message: str, context: str, history: list[dict]) -> str:
-    """Call Gemini and return the assistant reply."""
-    if not settings.gemini_api_key:
+    """Call NVIDIA NIM GLM-4.7 and return the assistant reply."""
+    if not settings.nvidia_api_key:
         return (
             "My AI brain isn't connected yet — the API key isn't configured. "
             "But feel free to email me at bhoopals@tcd.ie!"
         )
 
     try:
-        genai.configure(api_key=settings.gemini_api_key)
-        model = genai.GenerativeModel(
-            model_name=MODEL,
-            system_instruction=SYSTEM_PROMPT + f"\n\nRelevant information about Seeshuraj:\n{context}",
+        client = AsyncOpenAI(
+            base_url=NVIDIA_BASE_URL,
+            api_key=settings.nvidia_api_key,
         )
 
-        # Build history for multi-turn
-        gemini_history = []
+        messages = [
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT + f"\n\nRelevant information about Seeshuraj:\n{context}",
+            }
+        ]
         for turn in history[-6:]:
-            role = "user" if turn["role"] == "user" else "model"
-            gemini_history.append({"role": role, "parts": [turn["content"]]})
+            messages.append(turn)
+        messages.append({"role": "user", "content": user_message})
 
-        chat_session = model.start_chat(history=gemini_history)
-        response = chat_session.send_message(user_message)
-        return response.text.strip()
+        response = await client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            max_tokens=256,
+            temperature=0.7,
+        )
+        return response.choices[0].message.content.strip()
 
     except Exception as e:
         err = str(e)
-        print(f"[llm] Gemini error: {err}")
-        if "API_KEY_INVALID" in err or "403" in err:
-            return "My AI brain hit an auth error — the Gemini API key needs updating. Email me at bhoopals@tcd.ie!"
-        if "quota" in err.lower() or "429" in err:
+        print(f"[llm] NVIDIA NIM error: {err}")
+        if "401" in err or "403" in err or "invalid" in err.lower():
+            return "My AI brain hit an auth error — the API key needs updating. Email me at bhoopals@tcd.ie!"
+        if "429" in err or "quota" in err.lower():
             return "I'm getting a lot of questions right now — try again in a moment!"
         return "Something went wrong on my end — email me at bhoopals@tcd.ie!"
