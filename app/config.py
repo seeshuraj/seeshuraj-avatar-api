@@ -3,9 +3,10 @@ from typing import List
 import json, os
 
 class Settings(BaseSettings):
-    # LLM
-    XAI_API_KEY: str = ""
-    XAI_MODEL: str = "grok-3-fast"
+    # LLM — NVIDIA NIM (OpenAI-compatible)
+    NVIDIA_API_KEY: str = ""
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+    NVIDIA_MODEL: str = "deepseek-ai/deepseek-r1-0528-qwen3-8b"
 
     # Azure TTS
     SPEECH_KEY: str = ""
