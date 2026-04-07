@@ -1,10 +1,8 @@
 """
-NVIDIA NIM chat wrapper — returns strictly factual responses using Seeshuraj's persona.
+NVIDIA NIM chat wrapper - returns strictly factual responses using Seeshuraj's persona.
 Answers ONLY from RAG context passed in.
 Temperature 0.2 to maximise factual grounding.
 
-FIX: System prompt now explicitly names the correct degree and college
-     so the LLM cannot substitute training-data defaults (MSc CS / NIT Trichy).
 """
 from openai import OpenAI
 from .config import settings
