@@ -145,7 +145,7 @@ KNOWLEDGE_BASE = [
         "keywords": ["contact", "email", "reach", "linkedin", "github", "hire", "connect", "phone"],
         "text": (
             "You can reach me at bhoopals@tcd.ie or call +353 089 493 1217. "
-            "LinkedIn: linkedin.com/in/seeshuraj \u2014 GitHub: github.com/seeshuraj \u2014 Portfolio: seeshuraj.github.io. "
+            "LinkedIn: linkedin.com/in/seeshuraj-b-051260122/ \u2014 GitHub: github.com/seeshuraj \u2014 Portfolio: seeshuraj.github.io. "
             "I respond to every message!"
         ),
     },
