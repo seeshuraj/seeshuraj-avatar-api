@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     # Azure TTS
     SPEECH_KEY: str = ""
     SPEECH_REGION: str = "westeurope"
-    SPEECH_VOICE: str = "en-US-AriaNeural"
+    SPEECH_VOICE: str = "en-US-GuyNeural"
 
     # CORS — stored as JSON string in env: '["https://yourdomain.com"]'
     ALLOWED_ORIGINS: str = '["https://seeshuraj.github.io"]'
