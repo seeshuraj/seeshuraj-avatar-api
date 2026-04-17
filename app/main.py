@@ -87,6 +87,16 @@ async def validation_exception_handler(request: Request, exc):
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 
+@app.get("/")
+def root():
+    return {
+        "status": "ok",
+        "message": "Seeshuraj Avatar API v1.2.0",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "version": "1.2.0"}
